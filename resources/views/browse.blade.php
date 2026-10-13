@@ -29,7 +29,7 @@
 
             <!-- Type Selector -->
             <div class="w-full md:w-44">
-                <select name="type" class="bg-gray-900/60 border border-gray-800/80 text-sm text-gray-300 rounded-xl px-4 py-2.5 w-full cursor-pointer focus:border-indigo-500/50 focus:ring-0 outline-none">
+                <select name="type" onchange="window.location = '{{ route('browse') }}?type=' + this.value" class="bg-gray-900/60 border border-gray-800/80 text-sm text-gray-300 rounded-xl px-4 py-2.5 w-full cursor-pointer focus:border-indigo-500/50 focus:ring-0 outline-none">
                     <option value="anime" {{ $type === 'anime' ? 'selected' : '' }}>Anime</option>
                     <option value="manga" {{ $type === 'manga' ? 'selected' : '' }}>Manga</option>
                 </select>
@@ -41,63 +41,7 @@
             </button>
         </div>
 
-        <!-- Advanced Filter Row -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-2 border-t border-gray-800/40">
-            <!-- Genre -->
-            <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-550 mb-1 tracking-wider">Genre</label>
-                <select name="genre" class="bg-gray-900/60 border border-gray-800/80 text-xs text-gray-300 rounded-lg px-3 py-2 w-full cursor-pointer focus:border-indigo-500/50 focus:ring-0 outline-none">
-                    <option value="">Any Genre</option>
-                    @foreach(['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'] as $g)
-                        <option value="{{ $g }}" {{ ($genre ?? '') === $g ? 'selected' : '' }}>{{ $g }}</option>
-                    @endforeach
-                </select>
-            </div>
-
-            <!-- Status -->
-            <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-550 mb-1 tracking-wider">Status</label>
-                <select name="status" class="bg-gray-900/60 border border-gray-800/80 text-xs text-gray-300 rounded-lg px-3 py-2 w-full cursor-pointer focus:border-indigo-500/50 focus:ring-0 outline-none">
-                    <option value="">Any Status</option>
-                    <option value="RELEASING" {{ ($status ?? '') === 'RELEASING' ? 'selected' : '' }}>Ongoing</option>
-                    <option value="FINISHED" {{ ($status ?? '') === 'FINISHED' ? 'selected' : '' }}>Finished</option>
-                    <option value="NOT_YET_RELEASED" {{ ($status ?? '') === 'NOT_YET_RELEASED' ? 'selected' : '' }}>Upcoming</option>
-                    <option value="CANCELLED" {{ ($status ?? '') === 'CANCELLED' ? 'selected' : '' }}>Cancelled</option>
-                    <option value="HIATUS" {{ ($status ?? '') === 'HIATUS' ? 'selected' : '' }}>Hiatus</option>
-                </select>
-            </div>
-
-            <!-- Age Rating -->
-            <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-550 mb-1 tracking-wider">Age Rating</label>
-                <select name="age_rating" class="bg-gray-900/60 border border-gray-800/80 text-xs text-gray-300 rounded-lg px-3 py-2 w-full cursor-pointer focus:border-indigo-500/50 focus:ring-0 outline-none">
-                    <option value="">Any Age</option>
-                    <option value="PG" {{ ($ageRating ?? '') === 'PG' ? 'selected' : '' }}>Standard (PG-13)</option>
-                    <option value="R18" {{ ($ageRating ?? '') === 'R18' ? 'selected' : '' }}>Adult (18+)</option>
-                </select>
-            </div>
-
-            <!-- Sort By -->
-            <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-550 mb-1 tracking-wider">Sort By</label>
-                <select name="sort" class="bg-gray-900/60 border border-gray-800/80 text-xs text-gray-300 rounded-lg px-3 py-2 w-full cursor-pointer focus:border-indigo-500/50 focus:ring-0 outline-none">
-                    <option value="POPULARITY_DESC" {{ ($sort ?? '') === 'POPULARITY_DESC' ? 'selected' : '' }}>Popularity</option>
-                    <option value="TRENDING_DESC" {{ ($sort ?? '') === 'TRENDING_DESC' ? 'selected' : '' }}>Trending</option>
-                    <option value="SCORE_DESC" {{ ($sort ?? '') === 'SCORE_DESC' ? 'selected' : '' }}>Top Rated</option>
-                    <option value="START_DATE_DESC" {{ ($sort ?? '') === 'START_DATE_DESC' ? 'selected' : '' }}>Release Date</option>
-                    <option value="TITLE_ROMAJI" {{ ($sort ?? '') === 'TITLE_ROMAJI' ? 'selected' : '' }}>Title</option>
-                </select>
-            </div>
-
-            <!-- View Layout Type -->
-            <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-550 mb-1 tracking-wider">Layout</label>
-                <select name="view" class="bg-gray-900/60 border border-gray-800/80 text-xs text-gray-300 rounded-lg px-3 py-2 w-full cursor-pointer focus:border-indigo-500/50 focus:ring-0 outline-none">
-                    <option value="grid" {{ ($view ?? '') === 'grid' ? 'selected' : '' }}>Grid View</option>
-                    <option value="list" {{ ($view ?? '') === 'list' ? 'selected' : '' }}>List View</option>
-                </select>
-            </div>
-        </div>
+        @include('partials.browse-filters')
 
         <!-- Pagination hidden field to maintain state -->
         <input type="hidden" name="page" id="browse-page-input" value="{{ $pageInfo['currentPage'] ?? 1 }}">
@@ -126,6 +70,14 @@
 </div>
 
 <script>
+    // Any filter change starts again from page 1
+    document.addEventListener('change', function (e) {
+        const pageInput = document.getElementById('browse-page-input');
+        if (pageInput && e.target.form === pageInput.form) {
+            pageInput.value = 1;
+        }
+    }, true);
+
     // Handle pagination page change without full reload
     function goToBrowsePage(pageNum) {
         const pageInput = document.getElementById('browse-page-input');

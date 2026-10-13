@@ -5,11 +5,57 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Password;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    /**
+     * Log in with email and password.
+     */
+    public function login(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        if (!Auth::attempt($credentials, $request->boolean('remember'))) {
+            return back()
+                ->withInput($request->only('email', 'form'))
+                ->withErrors(['email' => 'The provided credentials do not match our records.']);
+        }
+
+        $request->session()->regenerate();
+
+        return redirect()->intended(route('home'))->with('success', 'Welcome back, ' . Auth::user()->name . '!');
+    }
+
+    /**
+     * Register a new account and log it in.
+     */
+    public function register(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email',
+            'password' => ['required', 'confirmed', Password::min(8)],
+        ]);
+
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => $data['password'],
+            'avatar' => 'https://api.dicebear.com/7.x/adventurer/svg?seed=' . urlencode($data['name']),
+        ]);
+
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('home')->with('success', 'Account created. Welcome to anim-ed, ' . $user->name . '!');
+    }
+
     /**
      * Redirect to the provider login page.
      */
@@ -85,9 +131,12 @@ class AuthController extends Controller
     /**
      * Log user out.
      */
-    public function logout()
+    public function logout(Request $request)
     {
         Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
         return redirect()->route('home');
     }
 }

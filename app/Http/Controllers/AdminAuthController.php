@@ -58,7 +58,7 @@ class AdminAuthController extends Controller
         $request->session()->regenerateToken();
 
         // Redirect back to the hidden login path
-        $path = env('ADMIN_LOGIN_PATH', 'secret-portal-admin');
+        $path = config('app.admin_login_path');
         return redirect('/' . $path);
     }
 }

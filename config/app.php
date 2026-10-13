@@ -123,4 +123,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Hidden Admin Login Path
+    |--------------------------------------------------------------------------
+    |
+    | The admin login form is served at this URL path instead of a guessable
+    | one like /admin/login.
+    |
+    */
+
+    'admin_login_path' => env('ADMIN_LOGIN_PATH', 'secret-portal-admin'),
+
 ];

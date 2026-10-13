@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Ad;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -15,34 +16,30 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
+        User::updateOrCreate(['email' => 'admin@anim-ed.io'], [
             'name' => 'Admin Control',
-            'email' => 'admin@anim-ed.io',
-            'password' => bcrypt('adminsecret'),
+            'password' => env('ADMIN_SEED_PASSWORD', 'adminsecret'),
             'is_admin' => true,
         ]);
 
-        \App\Models\Ad::create([
-            'title' => 'Crunchyroll Premium - Stream Anime Now!',
-            'image_url' => 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300&q=80',
-            'target_url' => 'https://crunchyroll.com',
-            'type' => 'watch',
+        User::updateOrCreate(['email' => 'demo@anim-ed.io'], [
+            'name' => 'Demo Viewer',
+            'password' => 'demo1234',
+            'avatar' => 'https://api.dicebear.com/7.x/adventurer/svg?seed=Demo%20Viewer',
         ]);
 
-        \App\Models\Ad::create([
-            'title' => 'BookWalker - Manga Digital Store',
-            'image_url' => 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300&q=80',
-            'target_url' => 'https://bookwalker.jp',
-            'type' => 'read',
-        ]);
+        $ads = [
+            ['Crunchyroll Premium - Stream Anime Now!', 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300&q=80', 'https://crunchyroll.com', 'watch'],
+            ['BookWalker - Manga Digital Store', 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300&q=80', 'https://bookwalker.jp', 'read'],
+            ['Anim-ed Premium Membership', 'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=300&q=80', 'https://anim-ed.io/premium', 'both'],
+        ];
 
-        \App\Models\Ad::create([
-            'title' => 'Anim-ed Premium Membership',
-            'image_url' => 'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=300&q=80',
-            'target_url' => 'https://anim-ed.io/premium',
-            'type' => 'both',
-        ]);
+        foreach ($ads as [$title, $image, $target, $type]) {
+            Ad::firstOrCreate(['title' => $title], [
+                'image_url' => $image,
+                'target_url' => $target,
+                'type' => $type,
+            ]);
+        }
     }
 }

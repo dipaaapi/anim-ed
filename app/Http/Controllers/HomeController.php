@@ -18,7 +18,17 @@ class HomeController extends Controller
     }
 
     /**
-     * Show home page with trending content.
+     * Show the landing page that introduces the project.
+     */
+    public function welcome()
+    {
+        $featured = $this->kitsu->getTrendingAnime(8);
+
+        return view('landing', compact('featured'));
+    }
+
+    /**
+     * Show the catalog home page with trending content.
      */
     public function index()
     {
@@ -26,9 +36,7 @@ class HomeController extends Controller
         $trendingManga = $this->kitsu->getTrendingManga(6);
 
         // Sidebar trends (default to anime for homepage)
-        $weeklyTrend = $this->kitsu->browseItems('anime', ['sort' => 'TRENDING_DESC', 'perPage' => 10])['results'];
-        $monthlyTrend = $this->kitsu->browseItems('anime', ['sort' => 'POPULARITY_DESC', 'perPage' => 10])['results'];
-        $yearlyTrend = $this->kitsu->browseItems('anime', ['sort' => 'SCORE_DESC', 'perPage' => 10])['results'];
+        [$weeklyTrend, $monthlyTrend, $yearlyTrend] = $this->kitsu->getTrendPeriods('anime');
 
         return view('home', compact('trendingAnime', 'trendingManga', 'weeklyTrend', 'monthlyTrend', 'yearlyTrend'));
     }
@@ -38,42 +46,45 @@ class HomeController extends Controller
      */
     public function browse(Request $request)
     {
-        $query = $request->input('query', '');
-        $type = $request->input('type', 'anime'); // anime or manga
-        $genre = $request->input('genre', '');
-        $status = $request->input('status', '');
-        $ageRating = $request->input('age_rating', '');
-        $sort = $request->input('sort', 'POPULARITY_DESC');
+        $type = $request->input('type', 'anime') === 'manga' ? 'manga' : 'anime';
+        $filters = [
+            'query' => $request->input('query', ''),
+            'genre' => $request->input('genre', ''),
+            'tag' => $request->input('tag', ''),
+            'format' => $request->input('format', ''),
+            'country' => $request->input('country', ''),
+            'status' => $request->input('status', ''),
+            'year' => $request->input('year', ''),
+            'season' => $type === 'anime' ? $request->input('season', '') : '',
+            'source' => $request->input('source', ''),
+            'ageRating' => $request->input('age_rating', ''),
+            'sort' => $request->input('sort', 'TRENDING_DESC'),
+        ];
+        $query = $filters['query'];
         $view = $request->input('view', 'grid'); // grid or list
-        $page = (int) $request->input('page', 1);
+        $page = max(1, (int) $request->input('page', 1));
 
-        $perPage = 18;
-
-        // Fetch paginated results with filters from AniList
-        $browseData = $this->kitsu->browseItems($type, [
-            'search' => $query,
-            'genre' => $genre,
-            'status' => $status,
-            'ageRating' => $ageRating,
-            'sort' => $sort,
+        $browseData = $this->kitsu->browseItems($type, array_merge($filters, [
+            'search' => $filters['query'],
             'page' => $page,
-            'perPage' => $perPage
-        ]);
+            'perPage' => 24,
+        ]));
 
         $results = $browseData['results'];
         $pageInfo = $browseData['pageInfo'];
 
         // Sidebar trends for the active type (anime or manga)
-        $weeklyTrend = $this->kitsu->browseItems($type, ['sort' => 'TRENDING_DESC', 'perPage' => 10])['results'];
-        $monthlyTrend = $this->kitsu->browseItems($type, ['sort' => 'POPULARITY_DESC', 'perPage' => 10])['results'];
-        $yearlyTrend = $this->kitsu->browseItems($type, ['sort' => 'SCORE_DESC', 'perPage' => 10])['results'];
+        [$weeklyTrend, $monthlyTrend, $yearlyTrend] = $this->kitsu->getTrendPeriods($type);
 
         // Handle HTMX dynamic search request
         if ($request->header('HX-Request')) {
             return view('partials.items-grid', compact('results', 'type', 'query', 'pageInfo', 'view'));
         }
 
-        return view('browse', compact('results', 'type', 'query', 'genre', 'status', 'ageRating', 'sort', 'view', 'pageInfo', 'weeklyTrend', 'monthlyTrend', 'yearlyTrend'));
+        $genres = $this->kitsu->getGenres();
+        $tagsByCategory = $this->kitsu->getTagsByCategory();
+
+        return view('browse', compact('results', 'type', 'query', 'filters', 'view', 'pageInfo', 'genres', 'tagsByCategory', 'weeklyTrend', 'monthlyTrend', 'yearlyTrend'));
     }
 
     /**
@@ -110,9 +121,7 @@ class HomeController extends Controller
         }
 
         // Sidebar trends
-        $weeklyTrend = $this->kitsu->browseItems('anime', ['sort' => 'TRENDING_DESC', 'perPage' => 10])['results'];
-        $monthlyTrend = $this->kitsu->browseItems('anime', ['sort' => 'POPULARITY_DESC', 'perPage' => 10])['results'];
-        $yearlyTrend = $this->kitsu->browseItems('anime', ['sort' => 'SCORE_DESC', 'perPage' => 10])['results'];
+        [$weeklyTrend, $monthlyTrend, $yearlyTrend] = $this->kitsu->getTrendPeriods('anime');
 
         return view('watch', compact('anime', 'episodes', 'ad', 'weeklyTrend', 'monthlyTrend', 'yearlyTrend'));
     }
@@ -151,9 +160,7 @@ class HomeController extends Controller
         }
 
         // Sidebar trends
-        $weeklyTrend = $this->kitsu->browseItems('manga', ['sort' => 'TRENDING_DESC', 'perPage' => 10])['results'];
-        $monthlyTrend = $this->kitsu->browseItems('manga', ['sort' => 'POPULARITY_DESC', 'perPage' => 10])['results'];
-        $yearlyTrend = $this->kitsu->browseItems('manga', ['sort' => 'SCORE_DESC', 'perPage' => 10])['results'];
+        [$weeklyTrend, $monthlyTrend, $yearlyTrend] = $this->kitsu->getTrendPeriods($type);
 
         return view('read', compact('manga', 'chapters', 'ad', 'weeklyTrend', 'monthlyTrend', 'yearlyTrend'));
     }

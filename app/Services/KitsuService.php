@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -10,26 +11,60 @@ class KitsuService
     protected string $baseUrl = 'https://graphql.anilist.co';
 
     /**
+     * Data is considered fresh for this long; after that it is refreshed in the
+     * background on the next visit while visitors keep seeing the cached copy.
+     */
+    protected const FRESH_SECONDS = 600;
+
+    /**
+     * How long the last good copy is kept as a fallback if AniList is down.
+     */
+    protected const STALE_SECONDS = 604800;
+
+    /**
      * Helper to query AniList GraphQL endpoint.
      */
     protected function queryAniList(string $query, array $variables = []): array
     {
+        $cacheKey = 'anilist:' . md5($query . json_encode($variables));
+
         try {
-            $response = Http::post($this->baseUrl, [
+            // Failed fetches throw, so they are never cached and the previous
+            // good copy keeps being served until AniList recovers.
+            return Cache::flexible(
+                $cacheKey,
+                [self::FRESH_SECONDS, self::STALE_SECONDS],
+                fn () => $this->fetchAniList($query, $variables)
+            );
+        } catch (\Throwable $e) {
+            Log::error('AniList API unavailable: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * @throws \RuntimeException when AniList cannot be reached or returns an error
+     */
+    protected function fetchAniList(string $query, array $variables = []): array
+    {
+        $response = Http::timeout(10)
+            ->retry(2, 500, throw: false)
+            ->acceptJson()
+            ->post($this->baseUrl, [
                 'query' => $query,
                 'variables' => $variables,
             ]);
 
-            if ($response->failed()) {
-                Log::error('AniList API error: ' . $response->body());
-                return [];
-            }
-
-            return $response->json()['data'] ?? [];
-        } catch (\Exception $e) {
-            Log::error('AniList API exception: ' . $e->getMessage());
-            return [];
+        if ($response->failed()) {
+            throw new \RuntimeException('HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300));
         }
+
+        $data = $response->json('data');
+        if (empty($data)) {
+            throw new \RuntimeException('Empty response: ' . mb_substr($response->body(), 0, 300));
+        }
+
+        return $data;
     }
 
     /**
@@ -59,6 +94,7 @@ class KitsuService
                 ],
                 'averageRating' => $media['averageScore'] ?? null,
                 'subtype' => $media['format'] ?? '',
+                'countryOfOrigin' => $media['countryOfOrigin'] ?? '',
                 'status' => $media['status'] ?? '',
                 'startDate' => isset($media['startDate']) ? sprintf('%04d-%02d-%02d', $media['startDate']['year'] ?? 0, $media['startDate']['month'] ?? 0, $media['startDate']['day'] ?? 0) : 'Unknown',
                 'episodeCount' => $media['episodes'] ?? null,
@@ -79,7 +115,7 @@ class KitsuService
         $mediaType = strtoupper($type) === 'MANGA' ? 'MANGA' : 'ANIME';
 
         $query = '
-        query ($page: Int, $perPage: Int, $search: String, $genre: [String], $status: MediaStatus, $sort: [MediaSort], $ageRating: Boolean) {
+        query ($page: Int, $perPage: Int, $search: String, $genre: [String], $status: MediaStatus, $sort: [MediaSort], $ageRating: Boolean, $startedAfter: FuzzyDateInt, $startedBefore: FuzzyDateInt, $tag: [String], $format: [MediaFormat], $country: CountryCode, $season: MediaSeason, $seasonYear: Int, $source: MediaSource) {
             Page(page: $page, perPage: $perPage) {
                 pageInfo {
                     total
@@ -88,7 +124,7 @@ class KitsuService
                     hasNextPage
                     perPage
                 }
-                media(type: ' . $mediaType . ', search: $search, genre_in: $genre, status: $status, sort: $sort, isAdult: $ageRating) {
+                media(type: ' . $mediaType . ', search: $search, genre_in: $genre, status: $status, sort: $sort, isAdult: $ageRating, startDate_greater: $startedAfter, startDate_lesser: $startedBefore, tag_in: $tag, format_in: $format, countryOfOrigin: $country, season: $season, seasonYear: $seasonYear, source: $source) {
                     id
                     title {
                         romaji
@@ -104,6 +140,7 @@ class KitsuService
                     bannerImage
                     averageScore
                     format
+                    countryOfOrigin
                     status
                     startDate {
                         year
@@ -137,8 +174,36 @@ class KitsuService
         if (!empty($filters['status'])) {
             $variables['status'] = $filters['status'];
         }
-        if (!empty($filters['ageRating'])) {
-            $variables['ageRating'] = $filters['ageRating'] === 'R18';
+        // Adult titles are hidden unless explicitly requested
+        $variables['ageRating'] = ($filters['ageRating'] ?? '') === 'R18';
+        if (!empty($filters['tag'])) {
+            $variables['tag'] = [$filters['tag']];
+        }
+        if (!empty($filters['format'])) {
+            $variables['format'] = [$filters['format']];
+        }
+        if (!empty($filters['country'])) {
+            $variables['country'] = $filters['country'];
+        }
+        if (!empty($filters['source'])) {
+            $variables['source'] = $filters['source'];
+        }
+        if (!empty($filters['year'])) {
+            $year = (int) $filters['year'];
+            if ($mediaType === 'ANIME' && !empty($filters['season'])) {
+                $variables['season'] = $filters['season'];
+                $variables['seasonYear'] = $year;
+            } else {
+                // Any title that started within the given year (FuzzyDateInt: YYYYMMDD)
+                $variables['startedAfter'] = ($year - 1) * 10000 + 1231;
+                $variables['startedBefore'] = ($year + 1) * 10000;
+            }
+        } elseif ($mediaType === 'ANIME' && !empty($filters['season'])) {
+            $variables['season'] = $filters['season'];
+        }
+        if (!empty($filters['startedAfter'])) {
+            // FuzzyDateInt format: YYYYMMDD
+            $variables['startedAfter'] = (int) $filters['startedAfter'];
         }
         if (!empty($filters['sort'])) {
             $variables['sort'] = [$filters['sort']];
@@ -162,6 +227,69 @@ class KitsuService
             'results' => $results,
             'pageInfo' => $pageInfo
         ];
+    }
+
+    /**
+     * All genres known to AniList, so the filter never falls behind the source.
+     */
+    public function getGenres(): array
+    {
+        $data = $this->queryAniList('query { GenreCollection }');
+
+        return $data['GenreCollection'] ?? [
+            'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music',
+            'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
+        ];
+    }
+
+    /**
+     * Non-adult AniList tags grouped by category, e.g. ['Theme-Fantasy' => ['Isekai', ...]].
+     */
+    public function getTagsByCategory(): array
+    {
+        $data = $this->queryAniList('query { MediaTagCollection { name category isAdult } }');
+
+        $grouped = [];
+        foreach ($data['MediaTagCollection'] ?? [] as $tag) {
+            if (!empty($tag['isAdult'])) {
+                continue;
+            }
+            $grouped[$tag['category'] ?: 'Other'][] = $tag['name'];
+        }
+        ksort($grouped);
+        foreach ($grouped as &$names) {
+            sort($names);
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Sidebar trend lists limited to recent releases, so they reflect what is
+     * current instead of all-time classics.
+     *
+     * @return array{0: array, 1: array, 2: array} [weekly, monthly, yearly]
+     */
+    public function getTrendPeriods(string $type, int $limit = 10): array
+    {
+        $weekly = $this->browseItems($type, [
+            'sort' => 'TRENDING_DESC',
+            'perPage' => $limit,
+        ])['results'];
+
+        $monthly = $this->browseItems($type, [
+            'sort' => 'TRENDING_DESC',
+            'startedAfter' => now()->subMonths(6)->format('Ymd'),
+            'perPage' => $limit,
+        ])['results'];
+
+        $yearly = $this->browseItems($type, [
+            'sort' => 'POPULARITY_DESC',
+            'startedAfter' => now()->subYear()->format('Ymd'),
+            'perPage' => $limit,
+        ])['results'];
+
+        return [$weekly, $monthly, $yearly];
     }
 
     /**

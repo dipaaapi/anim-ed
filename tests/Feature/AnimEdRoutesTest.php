@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class AnimEdRoutesTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     /**
      * Test public home route.
@@ -36,7 +36,7 @@ class AnimEdRoutesTest extends TestCase
      */
     public function test_hidden_admin_login_page_loads_correctly(): void
     {
-        $adminPath = env('ADMIN_LOGIN_PATH', 'secret-portal-admin');
+        $adminPath = config('app.admin_login_path');
         $response = $this->get('/' . $adminPath);
 
         $response->assertStatus(200);

@@ -43,7 +43,7 @@
     <header class="sticky top-0 z-50 bg-[#0b0b0f]/80 backdrop-blur-md border-b border-gray-800/60 px-4 lg:px-8 py-4">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
             <!-- Logo -->
-            <a href="{{ route('home') }}" class="flex items-center gap-2 group">
+            <a href="{{ route('welcome') }}" class="flex items-center gap-2 group">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-all">
                     A
                 </div>
@@ -54,9 +54,12 @@
 
             <!-- Nav Links -->
             <nav class="hidden md:flex items-center gap-8 text-sm font-semibold">
-                <a href="{{ route('home') }}" class="hover:text-white transition-colors {{ request()->routeIs('home') ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Home</a>
+                <a href="{{ route('welcome') }}" class="hover:text-white transition-colors {{ request()->routeIs('welcome') ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Home</a>
+                <a href="{{ route('home') }}" class="hover:text-white transition-colors {{ request()->routeIs('home') ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Catalog</a>
                 <a href="{{ route('browse', ['type' => 'anime']) }}" class="hover:text-white transition-colors {{ request()->routeIs('browse') && request('type') == 'anime' ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Anime</a>
-                <a href="{{ route('browse', ['type' => 'manga']) }}" class="hover:text-white transition-colors {{ request()->routeIs('browse') && request('type') == 'manga' ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Manga</a>
+                <a href="{{ route('browse', ['type' => 'manga']) }}" class="hover:text-white transition-colors {{ request()->routeIs('browse') && request('type') == 'manga' && !request('country') ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Manga</a>
+                <a href="{{ route('browse', ['type' => 'manga', 'country' => 'KR']) }}" class="hover:text-white transition-colors {{ request()->routeIs('browse') && request('country') == 'KR' ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Manhwa</a>
+                <a href="{{ route('browse', ['type' => 'manga', 'country' => 'CN']) }}" class="hover:text-white transition-colors {{ request()->routeIs('browse') && request('country') == 'CN' ? 'text-indigo-400 font-bold' : 'text-gray-400' }}">Manhua</a>
             </nav>
 
             <!-- User Auth Controls -->
@@ -128,7 +131,7 @@
     </footer>
 
     <!-- Login Modal -->
-    <div id="login-modal" class="{{ session('show-login') ? '' : 'hidden' }} fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm transition-all duration-300">
+    <div id="login-modal" class="{{ session('show-login') || ($errors->any() && old('form')) ? '' : 'hidden' }} fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm transition-all duration-300">
         <div class="bg-[#12121a] border border-gray-800/80 rounded-2xl w-full max-w-md p-6 relative shadow-2xl overflow-hidden">
             <!-- Background Glows -->
             <div class="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -146,10 +149,13 @@
                 <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-2xl mx-auto shadow-lg shadow-indigo-600/20 mb-3">
                     A
                 </div>
-                <h3 class="text-xl font-bold text-white">Welcome back to anim-ed</h3>
+                <h3 class="text-xl font-bold text-white">Welcome to anim-ed</h3>
                 <p class="text-gray-400 text-sm mt-1">Sign in to sync your watch and read history</p>
             </div>
 
+            @include('partials.auth-forms')
+
+            {{-- Social login is disabled for now; restore together with the auth.redirect routes in routes/web.php.
             <!-- Login buttons -->
             <div class="flex flex-col gap-4">
                 <!-- Google Login -->
@@ -173,6 +179,7 @@
                     Continue with Facebook
                 </a>
             </div>
+            --}}
         </div>
     </div>
 
